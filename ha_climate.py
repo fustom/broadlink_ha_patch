@@ -135,7 +135,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
     async def async_added_to_hass(self):
         """Call when the climate device is added to hass."""
         state = await self.async_get_last_state()
-        if state is not None:
+        if state is not None and state.state in [HVAC_MODE_HEAT, HVAC_MODE_COOL, HVAC_MODE_OFF, HVAC_MODE_AUTO]:
             self._attr_hvac_mode = state.state
             self._attr_hvac_action = state.attributes[ATTR_HVAC_ACTION]
             self._attr_current_temperature = state.attributes[ATTR_CURRENT_TEMPERATURE]
