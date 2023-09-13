@@ -41,6 +41,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
     """Representation of a Broadlink Hysen climate entity."""
 
     _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(self, device: BroadlinkDevice) -> None:
         """Initialize the climate entity."""
