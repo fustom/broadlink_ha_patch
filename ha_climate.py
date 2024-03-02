@@ -41,6 +41,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
     """Representation of a Broadlink Hysen climate entity."""
 
     _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(self, device: BroadlinkDevice) -> None:
         """Initialize the climate entity."""
@@ -50,6 +51,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
         self._attr_current_temperature = None
         self._attr_target_temperature = None
         self._attr_unique_id = device.unique_id
+        self.sensor = 0
 
     @property
     def supported_features(self) -> ClimateEntityFeature:
@@ -84,6 +86,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
     @callback
     def _update_state(self, data: Any):
         """Update data."""
+        self.sensor = data["sensor"]
         if data["power"]:
             if data["auto_mode"]:
                 self._attr_hvac_mode = HVACMode.AUTO
@@ -103,7 +106,7 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
         else:
             self._attr_hvac_mode = HVACMode.OFF
             self._attr_hvac_action = HVACAction.OFF
-        if data["sensor"]:
+        if self.sensor:
             self._attr_current_temperature = data["external_temp"]
         else:
             self._attr_current_temperature = data["room_temp"]
@@ -116,15 +119,15 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
 
         elif hvac_mode == HVACMode.AUTO:
             await self._device.async_request(self._device.api.set_power, 1)
-            await self._device.async_request(self._device.api.set_mode, 1, 0)
+            await self._device.async_request(self._device.api.set_mode, 1, 0, self.sensor)
 
         elif hvac_mode == HVACMode.HEAT:
             await self._device.async_request(self._device.api.set_power, 1)
-            await self._device.async_request(self._device.api.set_mode, 0, 0)
+            await self._device.async_request(self._device.api.set_mode, 0, 0, self.sensor)
 
         elif hvac_mode == HVACMode.COOL:
             await self._device.async_request(self._device.api.set_power, 1, 0, 1)
-            await self._device.async_request(self._device.api.set_mode, 0, 0)
+            await self._device.async_request(self._device.api.set_mode, 0, 0, self.sensor)
 
         self._attr_hvac_mode = hvac_mode
         self.async_write_ha_state()
