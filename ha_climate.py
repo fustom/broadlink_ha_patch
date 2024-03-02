@@ -2,26 +2,20 @@
 from typing import Any
 
 from homeassistant.components.climate import (
+    ATTR_TEMPERATURE,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
-    ATTR_CURRENT_TEMPERATURE,
-    ATTR_HVAC_ACTION,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_TEMPERATURE,
-    PRECISION_HALVES,
-    UnitOfTemperature,
-)
+from homeassistant.const import PRECISION_HALVES, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN
-from .entity import BroadlinkEntity
+from .const import DOMAIN, DOMAINS_AND_TYPES
 from .device import BroadlinkDevice
+from .entity import BroadlinkEntity
 
 
 async def async_setup_entry(
@@ -32,31 +26,31 @@ async def async_setup_entry(
     """Set up the Broadlink climate entities."""
     device = hass.data[DOMAIN].devices[config_entry.entry_id]
 
-    if device.api.type in {"HYS"}:
-        climate_entities = [BroadlinkThermostat(device)]
-        async_add_entities(climate_entities)
+    if device.api.type in DOMAINS_AND_TYPES[Platform.CLIMATE]:
+        async_add_entities([BroadlinkThermostat(device)])
 
 
-class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
+class BroadlinkThermostat(BroadlinkEntity, ClimateEntity):
     """Representation of a Broadlink Hysen climate entity."""
 
     _attr_has_entity_name = True
-    _attr_name = None
+    _attr_hvac_modes = [HVACMode.HEAT, HVACMode.COOL, HVACMode.OFF, HVACMode.AUTO]
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.TURN_ON
+    )
+    _attr_target_temperature_step = PRECISION_HALVES
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _enable_turn_on_off_backwards_compatibility = False
+
 
     def __init__(self, device: BroadlinkDevice) -> None:
         """Initialize the climate entity."""
         super().__init__(device)
-        self._attr_hvac_action = None
-        self._attr_hvac_mode = None
-        self._attr_current_temperature = None
-        self._attr_target_temperature = None
         self._attr_unique_id = device.unique_id
+        self._attr_hvac_mode = None
         self.sensor = 0
-
-    @property
-    def supported_features(self) -> ClimateEntityFeature:
-        """Return the list of supported features."""
-        return ClimateEntityFeature.TARGET_TEMPERATURE
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -64,24 +58,6 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
         await self._device.async_request(self._device.api.set_temp, temperature)
         self._attr_target_temperature = temperature
         self.async_write_ha_state()
-
-    @property
-    def target_temperature_step(self) -> float:
-        """Return the supported step of target temperature."""
-        return PRECISION_HALVES
-
-    @property
-    def temperature_unit(self) -> UnitOfTemperature:
-        """Return the unit of measurement that is used."""
-        return UnitOfTemperature.CELSIUS
-
-    @property
-    def hvac_modes(self) -> list[HVACMode]:
-        """Return the list of available hvac operation modes.
-
-        Need to be a subset of HVAC_MODES.
-        """
-        return [HVACMode.HEAT, HVACMode.COOL, HVACMode.OFF, HVACMode.AUTO]
 
     @callback
     def _update_state(self, data: Any):
@@ -131,23 +107,3 @@ class BroadlinkThermostat(BroadlinkEntity, ClimateEntity, RestoreEntity):
 
         self._attr_hvac_mode = hvac_mode
         self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """Run when entity about to be added."""
-        await super().async_added_to_hass()
-        if (old_state := await self.async_get_last_state()) is not None:
-            if old_state.state in [mode.value for mode in HVACMode]:
-                self._attr_hvac_mode = old_state.state
-            if old_state.attributes is not None:
-                if old_state.attributes.get(ATTR_HVAC_ACTION) in [
-                    mode.value for mode in HVACAction
-                ]:
-                    self._attr_hvac_action = old_state.attributes[ATTR_HVAC_ACTION]
-                if old_state.attributes.get(ATTR_TEMPERATURE) is not None:
-                    self._attr_target_temperature = float(
-                        old_state.attributes[ATTR_TEMPERATURE]
-                    )
-                if old_state.attributes.get(ATTR_CURRENT_TEMPERATURE) is not None:
-                    self._attr_current_temperature = float(
-                        old_state.attributes[ATTR_CURRENT_TEMPERATURE]
-                    )
